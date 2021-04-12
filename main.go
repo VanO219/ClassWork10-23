@@ -1,48 +1,79 @@
 package main
 
 import (
+	"database/sql"
 	"fmt"
-	"strconv"
+	_ "github.com/lib/pq"
+	"github.com/pkg/errors"
+	"log"
+	"net/url"
 )
 
-func main() {
-	fmt.Println(col(23536234523.60))
+type DB struct {
+	testDB *sql.DB
 }
 
-func col(num float64) (numS string) {
-	temp := (int64)(num)
+func (db *DB) Connection(username, password string) (err error) {
+	defer func() { err = errors.Wrap(err, "main.Connection") }()
 
-	a := (int64)(num * 100)
-	point := a % 100
+	u := url.URL{}
+	u.Scheme = "postgres"
+	u.User = url.UserPassword(username, password)
+	u.Host = "localhost:5000"
+	u.Path = "test_db"
+	u.RawQuery = "sslmode=disable"
 
-	// str := strconv.FormatInt(temp, 10)
-
-	// b1 := []byte(str)
+	db.testDB, err = sql.Open("postgres", u.String())
 
 
-	var arr []string
-
-	i := 0
-	for temp > 0 {
-		arr = append(arr, strconv.FormatInt(temp % 10, 10))
-		temp /= 10
+	if err != nil {
+		err = errors.Wrap(err, "ошибка подключения к бд")
+		return
 	}
 
-	for i = 0; i < len(arr); i++ {
-		numS += string(arr[i])
-		if (i+1)%3 == 0 && (i+1) < len(arr) {
-			numS += "__"
-		}
+	return err
+}
+
+func (db *DB) Close() (err error) {
+	defer func() { err = errors.Wrap(err, "main.Close") }()
+	err = db.testDB.Close()
+	if err != nil {
+		err = errors.Wrap(err, "ошибка закрытия бд")
+		return
 	}
-
-	b := []byte(numS)
-
-	c := []byte{}
-	for i = (len(b) - 1); i == 0; i-- {
-		c = append(c, b[i])
-	}
-	numS = string(c)
-	numS += fmt.Sprintf(".%d", point)
-
 	return
+}
+
+var dbase = DB{}
+
+func main() {
+	var err error
+	err = dbase.Connection("testuseri", "testuser123")
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	defer func() {
+		err = dbase.Close()
+		if err != nil {
+			log.Println(err)
+		}
+	}()
+
+	t := dbase.testDB
+	rows, err := t.Query("select * from notes")
+	if err != nil {
+		log.Fatalln(err)
+	}
+	for rows.Next() {
+		var id int64
+		var text string
+		err = rows.Scan(&id, &text)
+		if err != nil {
+			log.Println(err)
+			continue
+		}
+		fmt.Println(id, text)
+	}
+
 }
