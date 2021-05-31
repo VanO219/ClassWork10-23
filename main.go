@@ -1,6 +1,7 @@
 package main
 
 import (
+	"ClassWork10-23/config"
 	"database/sql"
 	"fmt"
 	_ "github.com/lib/pq"
@@ -13,24 +14,21 @@ type DB struct {
 	testDB *sql.DB
 }
 
-func (db *DB) Connection(username, password string) (err error) {
+func (db *DB) Connection(dataPass, username, password string) (err error) {
 	defer func() { err = errors.Wrap(err, "main.Connection") }()
 
-	u := url.URL{}
-	u.Scheme = "postgres"
+	u, err := url.Parse(dataPass)
+	if err != nil {
+		err = errors.Wrap(err, "ошибка парсинга пути до базы данных")
+	}
 	u.User = url.UserPassword(username, password)
-	u.Host = "localhost:5000"
-	u.Path = "test_db"
 	u.RawQuery = "sslmode=disable"
-
+	fmt.Println(u.String())
 	db.testDB, err = sql.Open("postgres", u.String())
-
-
 	if err != nil {
 		err = errors.Wrap(err, "ошибка подключения к бд")
 		return
 	}
-
 	return err
 }
 
@@ -44,15 +42,16 @@ func (db *DB) Close() (err error) {
 	return
 }
 
-var dbase = DB{}
+var (
+	dbase = DB{}
+	conf *config.Config
+)
 
 func main() {
-	var err error
-	err = dbase.Connection("testuseri", "testuser123")
+	err := manage()
 	if err != nil {
 		log.Fatalln(err)
 	}
-
 	defer func() {
 		err = dbase.Close()
 		if err != nil {
@@ -61,19 +60,21 @@ func main() {
 	}()
 
 	t := dbase.testDB
-	rows, err := t.Query("select * from notes")
+	rows, err := t.Query("select * from products")
 	if err != nil {
 		log.Fatalln(err)
 	}
 	for rows.Next() {
 		var id int64
-		var text string
-		err = rows.Scan(&id, &text)
+		var model string
+		var company string
+		var price int64
+		err = rows.Scan(&id, &model, &company, &price)
 		if err != nil {
 			log.Println(err)
 			continue
 		}
-		fmt.Println(id, text)
+		fmt.Println(id, model, company, price)
 	}
 
 }
